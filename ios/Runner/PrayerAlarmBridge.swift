@@ -147,7 +147,7 @@ final class PrayerAlarmBridge {
     #endif
     switch await center.notificationSettings().authorizationStatus {
     case .denied:
-      if permission != "startupNotifications" { openSettings() }
+      openSettings()
     case .notDetermined:
       _ = try await center.requestAuthorization(options: [.alert, .sound])
     default:

@@ -24,6 +24,8 @@ typedef AlarmMedia = ({
 });
 
 class PrayerAlarms {
+  const PrayerAlarms();
+
   static const _channel = MethodChannel('app.ibada/alarms');
 
   static const unknown = (
@@ -34,8 +36,11 @@ class PrayerAlarms {
     alarmKit: false,
   );
 
-  Future<AlarmStatus> status() async {
-    final state = await _channel.invokeMapMethod<String, bool>('status');
+  Future<AlarmStatus> status({bool permissionsOnly = false}) async {
+    final state = await _channel.invokeMapMethod<String, bool>(
+      'status',
+      permissionsOnly,
+    );
     return state == null
         ? unknown
         : (

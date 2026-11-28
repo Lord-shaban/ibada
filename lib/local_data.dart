@@ -13,7 +13,6 @@ import 'package:timezone_finder/timezone_finder.dart' as zones;
 import 'prayer_times.dart';
 
 const _settingsKey = 'prayer-settings';
-const _startupPermissionsKey = 'startup-permissions-requested';
 const _zonesKey = 'tz-data';
 const _etagKey = 'tz-etag';
 const _checkedKey = 'tz-checked';
@@ -24,7 +23,9 @@ class LocalData {
   final _preferences = SharedPreferencesAsync();
   String? _appliedZones;
 
-  Future<PrayerSettings> load() async {
+  Future<PrayerSettings> load({
+    PrayerSettings defaultSettings = PrayerSettings.defaults,
+  }) async {
     tzdata.initializeTimeZones();
     try {
       final bundled = await rootBundle.load('assets/data/timezones.tzf');
@@ -47,7 +48,7 @@ class LocalData {
       }
     }
     final saved = await _preferences.getString(_settingsKey);
-    if (saved == null) return PrayerSettings.defaults;
+    if (saved == null) return defaultSettings;
     try {
       final settings = PrayerSettings.fromJson(
         jsonDecode(saved) as Map<String, dynamic>,
@@ -55,21 +56,12 @@ class LocalData {
       tz.getLocation(settings.place.zone);
       return settings;
     } catch (_) {
-      return PrayerSettings.defaults;
+      return defaultSettings;
     }
   }
 
   Future<void> save(PrayerSettings settings) =>
       _preferences.setString(_settingsKey, jsonEncode(settings.toJson()));
-
-  Future<bool> claimStartupPermissions() async {
-    if (await _preferences.getBool(_startupPermissionsKey) == true ||
-        await _preferences.getString(_settingsKey) != null) {
-      return false;
-    }
-    await _preferences.setBool(_startupPermissionsKey, true);
-    return true;
-  }
 
   Future<bool> refreshTimeZones(String activeZone) async {
     final cached = await _preferences.getString(_zonesKey);

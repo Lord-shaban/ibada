@@ -44,8 +44,8 @@ Ibada is a free, open-source app with an Arabic interface. Prayer calculations, 
 Ibada supports **Android 8 or later**. [Download the latest APK](https://github.com/Lord-Labs/ibada/releases/latest/download/Ibada.apk)
 
 1. Open the APK from your downloads. Android may ask you to allow installation from the source you used.
-2. Open Ibada and select a city or use your current location. The app shows Cairo's times until you select a location.
-3. Enable the alerts you want. Use the test alert in Settings to check the sound and notification permissions.
+2. Open Ibada and follow the prompts to grant location, notification, and alarm permissions as required by your Android version.
+3. Ibada uses your current location to calculate prayer times. You can change the city and try a test alert in Settings.
 
 ## How prayer times work
 

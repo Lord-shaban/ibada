@@ -9,11 +9,15 @@ import 'devotion.dart';
 import 'local_data.dart';
 import 'prayer_times.dart';
 import 'screens.dart';
+import 'startup_permissions.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final data = LocalData();
-  final settings = await data.load();
+  const alarms = PrayerAlarms();
+  final settings = await data.load(
+    defaultSettings: PrayerSettings.defaults.copyWith(alarms: alarms.supported),
+  );
   runApp(IbadaApp(data: data, settings: settings));
 }
 
@@ -26,7 +30,7 @@ Future<void> refreshPrayerAlarms() async {
     final data = LocalData();
     final settings = await data.load();
     await data.refreshTimeZones(settings.place.zone);
-    await PrayerAlarms().replace(PrayerCalculator(settings), DateTime.now());
+    await const PrayerAlarms().replace(PrayerCalculator(settings), DateTime.now());
     refreshed = true;
   } finally {
     await channel.invokeMethod<void>('complete', refreshed);
@@ -34,9 +38,15 @@ Future<void> refreshPrayerAlarms() async {
 }
 
 class IbadaApp extends StatefulWidget {
-  const IbadaApp({super.key, required this.data, required this.settings});
+  const IbadaApp({
+    super.key,
+    required this.data,
+    required this.settings,
+    this.alarms = const PrayerAlarms(),
+  });
   final LocalData data;
   final PrayerSettings settings;
+  final PrayerAlarms alarms;
 
   @override
   State<IbadaApp> createState() => _IbadaAppState();
@@ -59,10 +69,14 @@ class _IbadaAppState extends State<IbadaApp> {
       'dark' => ThemeMode.dark,
       _ => ThemeMode.system,
     },
+    builder: (_, child) => widget.alarms.supported
+        ? StartupPermissions(alarms: widget.alarms, child: child!)
+        : child!,
     home: _Home(
       data: widget.data,
+      alarms: widget.alarms,
       initial: settings,
-      onAppearance: (updated) => setState(() => settings = updated),
+      onSettings: (updated) => setState(() => settings = updated),
     ),
   );
 }
@@ -70,12 +84,14 @@ class _IbadaAppState extends State<IbadaApp> {
 class _Home extends StatefulWidget {
   const _Home({
     required this.data,
+    required this.alarms,
     required this.initial,
-    required this.onAppearance,
+    required this.onSettings,
   });
   final LocalData data;
+  final PrayerAlarms alarms;
   final PrayerSettings initial;
-  final ValueChanged<PrayerSettings> onAppearance;
+  final ValueChanged<PrayerSettings> onSettings;
 
   @override
   State<_Home> createState() => _HomeState();
@@ -102,7 +118,6 @@ typedef _MediaChoice = ({
 
 class _HomeState extends State<_Home> with WidgetsBindingObserver {
   final _cities = CityDirectory();
-  final _alarms = PrayerAlarms();
   final _clock = ValueNotifier(DateTime.now());
   final _messages = GlobalKey<ScaffoldMessengerState>();
   late PrayerSettings _settings = widget.initial;
@@ -120,15 +135,14 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
   _Tab _tab = _Tab.today;
   int _dayOffset = 0;
 
+  PrayerAlarms get _alarms => widget.alarms;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     unawaited(_resume());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_requestStartupPermissions());
-    });
   }
 
   void _tick() {
@@ -152,29 +166,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     await _readStatus();
     if (!mounted) return;
     _schedule();
-    if (_settings.place.usesGps) await _refreshPosition();
-  }
-
-  Future<void> _requestStartupPermissions() async {
-    if (!_alarms.supported ||
-        !await widget.data.claimStartupPermissions() ||
-        !mounted) {
-      return;
-    }
-
-    if (!_settings.confirmedPlace) {
-      try {
-        await _cities.requestPermission();
-      } on Exception {
-        // The city picker remains available if the system cannot use location.
-      }
-      if (!mounted) return;
-      if (!_settings.confirmedPlace) unawaited(_refreshPosition(initial: true));
-    }
-
-    await _request('startupNotifications');
-    if (mounted && _status.notifications && !_settings.alarms) {
-      _update(_settings.copyWith(alarms: true));
+    if (_alarms.supported &&
+        (!_settings.confirmedPlace || _settings.place.usesGps)) {
+      await _refreshPosition(initial: !_settings.confirmedPlace);
     }
   }
 
@@ -249,9 +243,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       _calculator = PrayerCalculator(settings);
       _date = civilKey(_calculator.localTime(_clock.value));
     });
-    if (settings.appearance != widget.initial.appearance) {
-      widget.onAppearance(settings);
-    }
+    widget.onSettings(settings);
     _schedule(save: true);
   }
 

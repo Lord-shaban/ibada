@@ -22,7 +22,13 @@ class HomeActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 try {
                     when (call.method) {
-                        "status" -> result.success(PrayerAlarm.status(this))
+                        "status" -> result.success(
+                            if (call.arguments == true) mapOf(
+                                "notifications" to PrayerAlarm.notificationAllowed(this),
+                                "exact" to PrayerAlarm.exact(this),
+                                "fullScreen" to PrayerAlarm.fullScreen(this),
+                            ) else PrayerAlarm.status(this),
+                        )
                         "mediaStatus" -> result.success(PrayerAlertMedia.status(this))
                         "pickSound", "pickImage", "pickTone" -> pickMedia(call.method, result)
                         "resetSound", "resetImage", "setSoundPreset", "setImagePreset" -> {
@@ -109,7 +115,7 @@ class HomeActivity : FlutterActivity() {
     private fun request(permission: String, result: MethodChannel.Result) {
         val app = Uri.parse("package:$packageName")
         when (permission) {
-            "notifications", "startupNotifications" -> {
+            "notifications" -> {
                 if (Build.VERSION.SDK_INT >= 33 &&
                     checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                 ) {
@@ -122,14 +128,12 @@ class HomeActivity : FlutterActivity() {
                         return
                     }
                 }
-                if (permission == "notifications") {
-                    val intent = if (PrayerAlarm.notificationAllowed(this)) {
-                        channelSettings()
-                    } else {
-                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
-                    }
-                    startActivity(intent)
+                val intent = if (PrayerAlarm.notificationAllowed(this)) {
+                    channelSettings()
+                } else {
+                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
                 }
+                startActivity(intent)
             }
             "exact" -> if (Build.VERSION.SDK_INT >= 31 && !PrayerAlarm.exact(this)) {
                 startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, app))
